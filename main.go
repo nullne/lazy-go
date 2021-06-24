@@ -11,6 +11,7 @@ import (
 	"go/token"
 	"io/ioutil"
 	"os"
+	"path"
 	"text/template"
 )
 
@@ -26,6 +27,7 @@ type foo struct {
 var (
 	gFile = flag.String("file", "./testdata/hello.go", "specify go file")
 	gLine = flag.Int("line", -1, "line which the target struct contains")
+	gType = flag.String("type", "db", "what kind of convert, support db, rest")
 )
 
 func main() {
@@ -90,9 +92,16 @@ func run() error {
 	}
 	r.Struct.Fields = fields
 
-	tpl := template.Must(template.New("letter").ParseFiles("/Users/nullne/go/src/github.com/nullne/layz-go/templates/db.tpl"))
+	var tplPath string
+	switch *gType {
+	case "db":
+		tplPath = "/Users/nullne/go/src/github.com/nullne/layz-go/templates/db.tpl"
+	case "rest":
+		tplPath = "/Users/nullne/go/src/github.com/nullne/layz-go/templates/rest.tpl"
+	}
+	tpl := template.Must(template.New("letter").ParseFiles(tplPath))
 
-	err = tpl.ExecuteTemplate(os.Stdout, "db.tpl", r)
+	err = tpl.ExecuteTemplate(os.Stdout, path.Base(tplPath), r)
 	if err != nil {
 		return err
 	}

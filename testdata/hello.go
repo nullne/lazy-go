@@ -2,14 +2,12 @@ package domain
 
 import "time"
 
-type Answer struct {
-	ID          string
-	QuestionID  string
-	Content     string
-	ContentType string
-	CreatorID   string
-	Sticky      bool
-	KudosCount  int
-	CreatedAt   time.Time
-	LastUpdated time.Time
+type Note struct {
+	ID        string
+	LessonID  string
+	Heading   string
+	CreatorID string
+	Content   string
+	Sticky    bool
+	CreatedAt time.Time
 }

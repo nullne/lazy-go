@@ -87,7 +87,18 @@ func (m *Manager) build{{.Struct.Name.Plural}}Query(ctx context.Context, ins ...
 	return query, args, nil
 }
 
-func (m *Manager) Select{{.Struct.Name.Plural}}ByIDs(ctx context.Context, ids []string) (domain.{{.Struct.Name.Plural}}, error) {
+func (m *Manager) Select{{.Struct.Name}}ByID(ctx context.Context, id string) (*domain.{{.Struct.Name}}, error) {
+	{{.Struct.Name.LowerFirstLetter.Plural}}, err := m.Select{{.Struct.Name.Plural}}ByIDs(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if len({{.Struct.Name.LowerFirstLetter.Plural}}) != 1 {
+		return nil, sql.ErrNoRows
+	}
+	return &({{.Struct.Name.LowerFirstLetter.Plural}}[0]), nil
+}
+
+func (m *Manager) Select{{.Struct.Name.Plural}}ByIDs(ctx context.Context, ids ...string) (domain.{{.Struct.Name.Plural}}, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}

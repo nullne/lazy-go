@@ -19,8 +19,28 @@ type Struct struct {
 	Fields Fields
 }
 
+func (s Struct) UnexportedName() string {
+	return string(s.Name.LowerFirstLetter())
+}
+
+func (s Struct) ExportedName() string {
+	return string(s.Name)
+}
+
+func (s Struct) UnexportedPluralName() string {
+	return string(s.Name.LowerFirstLetter().Plural())
+}
+
+func (s Struct) ExportedPluralName() string {
+	return string(s.Name.Plural())
+}
+
+func (s Struct) PluralJSONName() string {
+	return string(s.Name.CamelCase().Plural().LowerFirstLetter())
+}
+
 func (s Struct) TableName() string {
-	return ""
+	return string(s.Name.SnakeCase().Plural())
 }
 
 var (
@@ -30,9 +50,12 @@ var (
 type Fields []Field
 
 func (fs Fields) Columns() string {
-	out := make([]string, len(fs))
-	for i, f := range fs {
-		out[i] = string(f.Name.SnakeCase())
+	out := make([]string, 0, len(fs))
+	for _, f := range fs {
+		if f.IsID() {
+			continue
+		}
+		out = append(out, string(f.Name.SnakeCase()))
 	}
 	return strings.Join(out, ", ")
 }
@@ -50,6 +73,15 @@ type Field struct {
 	Type string
 }
 
+func (f Field) IsID() bool {
+	return f.Name == "ID"
+}
+
+func (f Field) IsIDType() bool {
+	return strings.HasSuffix(string(f.Name), "ID") ||
+		strings.HasSuffix(string(f.Name), "IDs")
+}
+
 func (f Field) DBType() string {
 	switch f.Type {
 	case "[]string":
@@ -60,16 +92,70 @@ func (f Field) DBType() string {
 		return f.Type
 	}
 }
+func (f Field) RestType() string {
+	switch f.Type {
+	case "time.Time":
+		return "Iso8601Time"
+	case "string":
+		if f.IsIDType() {
+			return "idType"
+		} else {
+			return f.Type
+		}
+	case "[]string":
+		if f.IsIDType() {
+			return "[]idType"
+		} else {
+			return f.Type
+		}
+
+	default:
+		return f.Type
+	}
+}
+
+func (f Field) RestConvert(s Struct) string {
+	if f.IsID() {
+		return fmt.Sprintf(`idType: it%s(in.ID),`, s.ExportedName())
+	} else if f.IsIDType() {
+		switch f.Type {
+		case "string":
+			return fmt.Sprintf(`%s: it%s(in.%s),`, f.Name, f.Name.ResourceName(), f.Name)
+		case "[]string":
+			return fmt.Sprintf(`%s: make([]idType, len(in.%s),`, f.Name, f.Name)
+		default:
+			panic("unsupported type")
+		}
+	} else if f.Type == "time.Time" {
+		return fmt.Sprintf(`%s: *toUtcIsoTime(in.%s),`, f.Name, f.Name)
+	} else {
+		return fmt.Sprintf(`%s: in.%s,`, f.Name, f.Name)
+
+	}
+}
 
 func (f Field) DBTag() string {
 	return fmt.Sprintf(`db:"%s"`, f.Name.SnakeCase())
 }
 
-func (f Field) JSONTag() string {
-	return fmt.Sprintf(`json:"%s"`, f.Name.CamelCase())
+func (f Field) RestTag() string {
+	s := `json:"%s"`
+	if f.Type == "time.Time" {
+		s = `json:"%s"  swaggertype:"primitive,string"`
+	}
+	return fmt.Sprintf(s, f.Name.CamelCase().LowerFirstLetter())
 }
 
 type VarName string
+
+func (n VarName) ResourceName() string {
+	if strings.HasSuffix(string(n), "ID") {
+		return strings.TrimSuffix(string(n), "ID")
+	} else if strings.HasSuffix(string(n), "IDs") {
+		return strings.TrimSuffix(string(n), "IDs")
+	}
+	return string(n)
+}
 
 func (n VarName) LowerFirstLetter() VarName {
 	for i, v := range n {
