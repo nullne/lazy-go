@@ -8,6 +8,15 @@ type Note struct {
 	Heading   string
 	CreatorID string
 	Content   string
-	Sticky    bool
+	Ints      []int
+	Hi        Foo
+	Sticky    Fuck
 	CreatedAt time.Time
+	UpdatedAt *time.Time
+}
+
+// go:generate enumer -type=VerificationType
+type Foo int
+
+type Fuck struct {
 }

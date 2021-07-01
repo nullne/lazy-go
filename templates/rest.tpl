@@ -55,7 +55,6 @@ func buildResp{{.Struct.ExportedName}}({{.Struct.UnexportedPluralName}} domain.{
 	return &resp, nil
 }
 
-
 // Create{{.Struct.ExportedName}} godoc
 // @Summary Create {{.Struct.UnexportedName}}
 // @Tags {{.Struct.ExportedName}}

@@ -8,13 +8,16 @@ import (
 )
 
 type {{.Struct.Name.LowerFirstLetter}} struct {
-    {{range .Struct.Fields}}{{.Name}} {{.DBType}} `{{.DBTag}}`
+    {{range .Struct.Fields}}{{.Name}} {{.ConvertDBType}} `{{.DBTag}}`
     {{end }}}
 
 func (in {{.Struct.Name.LowerFirstLetter}}) to() (*domain.{{.Struct.Name}}, error) {
-	return &domain.{{.Struct.Name}}{
-        {{range .Struct.Fields}}{{.Name}}: in.{{.Name}},
-    {{end }}}, nil
+	out := domain.{{.Struct.Name}}{
+        {{range .Struct.Fields}}{{with $v := .ConvertDBTo1}}{{$v}}
+    {{end}}{{end }}}
+	{{range .Struct.Fields}}{{with $v := .ConvertDBTo2}}{{$v}}
+	{{end}}{{end}}
+	return &out, nil
 }
 
 type {{.Struct.Name.LowerFirstLetter.Plural}} []{{.Struct.Name.LowerFirstLetter}}
@@ -32,9 +35,12 @@ func (ins {{.Struct.Name.LowerFirstLetter.Plural}}) to() ([]domain.{{.Struct.Nam
 }
 
 func from{{.Struct.Name}}(in domain.{{.Struct.Name}}) (*{{.Struct.Name.LowerFirstLetter}}, error) {
-	return &{{.Struct.Name.LowerFirstLetter}}{
-		{{range .Struct.Fields}}{{.Name}}: in.{{.Name}},
-	{{end}}}, nil
+	out := {{.Struct.Name.LowerFirstLetter}}{
+		{{range .Struct.Fields}}{{with $v := .ConvertDBFrom1}}{{$v}}
+	{{end}}{{end}}}
+	{{range .Struct.Fields}}{{with $v := .ConvertDBFrom2}}{{$v}}
+	{{end}}{{end}}
+	return &out, nil
 }
 
 func from{{.Struct.Name.Plural}}(ins []domain.{{.Struct.Name}}) ([]{{.Struct.Name.LowerFirstLetter}}, error) {

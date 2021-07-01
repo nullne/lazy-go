@@ -12,22 +12,14 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strings"
 	"text/template"
 )
-
-type foo struct {
-	AnotherPeople string `db:"another_people" json:"another_people,omitempty" yaml:"another_people"`
-	B             string `db:"b" json:"b,omitempty" yaml:"b"`
-	C             struct {
-		Hi         string `json:"hi,omitempty"`
-		YouAreSHIT string `json:"you_are_shit,omitempty"`
-	} `json:"c,omitempty"`
-}
 
 var (
 	gFile = flag.String("file", "./testdata/hello.go", "specify go file")
 	gLine = flag.Int("line", -1, "line which the target struct contains")
-	gType = flag.String("type", "db", "what kind of convert, support db, rest")
+	gType = flag.String("type", "pg", "what kind of convert, support pg, rest")
 )
 
 func main() {
@@ -50,11 +42,18 @@ func run() error {
 		return err
 	}
 
+	// why comments
+	comments := collectComments(file.Comments, fset)
+	// fmt.Println(comments)
+
 	r := Foo{
 		Struct: Struct{},
 	}
 
 	structNames := collectStructs(file)
+	types := collectTypes(file)
+	// fmt.Println(types)
+
 	var fields Fields
 	ast.Inspect(file, func(x ast.Node) bool {
 
@@ -77,7 +76,12 @@ func run() error {
 			printer.Fprint(&typeNameBuf, fset, field.Type)
 			// fmt.Println("type", field.Type, "---", v.String(), "----", typeNameBuf.String())
 			for _, name := range field.Names {
-				fields = append(fields, Field{Name: VarName(name.Name), Type: typeNameBuf.String()})
+				fields = append(fields, Field{
+					Name:        VarName(name.Name),
+					Type:        typeNameBuf.String(),
+					LocalStruct: localStruct(structNames, typeNameBuf.String()),
+					IsEnum:      hasString(comments, findStructLine(fset, types, typeNameBuf.String())),
+				})
 				// fmt.Printf("%d %s %#v\n", name.NamePos, name.Name, *(name.Obj))
 			}
 			// fmt.Printf("Field: %s\n", field.Names[0].Name)
@@ -91,10 +95,11 @@ func run() error {
 		return errors.New("please select the struct to generate db implementation")
 	}
 	r.Struct.Fields = fields
+	// fmt.Println(fields)
 
 	var tplPath string
 	switch *gType {
-	case "db":
+	case "pg":
 		tplPath = "/Users/nullne/go/src/github.com/nullne/layz-go/templates/db.tpl"
 	case "rest":
 		tplPath = "/Users/nullne/go/src/github.com/nullne/layz-go/templates/rest.tpl"
@@ -106,6 +111,52 @@ func run() error {
 		return err
 	}
 	return nil
+}
+
+func localStruct(s map[token.Pos]string, name string) bool {
+	for _, v := range s {
+		if v == name {
+			return true
+		}
+	}
+	return false
+}
+
+func hasString(comments map[int]string, line int) bool {
+	if line == -1 {
+		return false
+	}
+	s, ok := comments[line-1]
+	if !ok {
+		return false
+	}
+	if !strings.Contains(s, "go:generate") {
+		return false
+	}
+	if !strings.Contains(s, "enumer") {
+		return false
+	}
+	return true
+}
+
+func findStructLine(fset *token.FileSet, structs map[token.Pos]string, name string) int {
+	var line int = -1
+	for p, n := range structs {
+		if n == name {
+			line = fset.Position(p).Line
+			return line
+		}
+	}
+	return line
+}
+
+func collectComments(comments []*ast.CommentGroup, fset *token.FileSet) map[int]string {
+	docs := make(map[int]string)
+	for _, c := range comments {
+		line := fset.Position(c.Pos()).Line
+		docs[line] = c.Text()
+	}
+	return docs
 }
 
 func collectStructs(node ast.Node) map[token.Pos]string {
@@ -128,6 +179,20 @@ func collectStructs(node ast.Node) map[token.Pos]string {
 		}
 
 		structs[x.Pos()] = structName
+		return true
+	}
+	ast.Inspect(node, collectStructs)
+	return structs
+}
+
+func collectTypes(node ast.Node) map[token.Pos]string {
+	structs := make(map[token.Pos]string, 0)
+	collectStructs := func(n ast.Node) bool {
+		t, ok := n.(*ast.TypeSpec)
+		if !ok {
+			return true
+		}
+		structs[t.Pos()] = t.Name.Name
 		return true
 	}
 	ast.Inspect(node, collectStructs)
