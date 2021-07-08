@@ -61,9 +61,13 @@ func (fs Fields) Columns() string {
 }
 
 func (fs Fields) NamedBindVars() string {
-	out := make([]string, len(fs))
-	for i, f := range fs {
-		out[i] = fmt.Sprintf(":%s", f.Name.SnakeCase())
+	out := make([]string, 0, len(fs))
+
+	for _, f := range fs {
+		if f.IsID() {
+			continue
+		}
+		out = append(out, fmt.Sprintf(":%s", f.Name.SnakeCase()))
 	}
 	return strings.Join(out, ", ")
 }
@@ -351,7 +355,7 @@ func (f Field) convertNullString(convertType int) string {
 		return ""
 	case ConvertDBFrom2:
 		tpl := `if in.%s != nil {
-			if err := out.%s.Scan(in.%s); err != nil {
+			if err := out.%s.Scan(*in.%s); err != nil {
 				return nil, err
 			}
 		}`
